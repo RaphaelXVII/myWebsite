@@ -1,186 +1,169 @@
-// Smooth scrolling for navigation links
-document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', function(e) {
+/* ==============================
+   LEGO Portfolio — Interactive JS
+   ============================== */
+
+// ---- SMOOTH SCROLLING ----
+document.querySelectorAll('.nav-brick').forEach(link => {
+    link.addEventListener('click', function (e) {
         e.preventDefault();
-        const targetId = this.getAttribute('href');
-        const targetSection = document.querySelector(targetId);
-        
-        if (targetSection) {
-            targetSection.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
-        }
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 });
 
-// Add active class to nav links on scroll
+// ---- ACTIVE NAV ON SCROLL ----
 window.addEventListener('scroll', () => {
-    const sections = document.querySelectorAll('.section');
-    const navLinks = document.querySelectorAll('.nav-link');
-    
     let current = '';
-    
-    sections.forEach(section => {
-        const sectionTop = section.offsetTop;
-        const sectionHeight = section.clientHeight;
-        
-        if (window.pageYOffset >= sectionTop - 200) {
-            current = section.getAttribute('id');
-        }
+    document.querySelectorAll('.section').forEach(sec => {
+        if (window.scrollY >= sec.offsetTop - 260) current = sec.id;
     });
-    
-    navLinks.forEach(link => {
-        link.classList.remove('active');
-        if (link.getAttribute('href') === `#${current}`) {
-            link.classList.add('active');
-        }
+    document.querySelectorAll('.nav-brick').forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === `#${current}`);
     });
-});
+}, { passive: true });
 
-// Animate elements on scroll
-const observerOptions = {
-    threshold: 0.1,
-    rootMargin: '0px 0px -100px 0px'
-};
+// ---- BRICK CLICK COUNTER ----
+let brickCount = 0;
+const brickCountEl  = document.getElementById('brickCount');
+const counterEl     = document.getElementById('brickCounter');
 
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            entry.target.style.opacity = '1';
-            entry.target.style.transform = 'translateY(0)';
-        }
-    });
-}, observerOptions);
-
-// Observe all skill cards and project cards
-document.querySelectorAll('.skill-card, .project-card').forEach(card => {
-    card.style.opacity = '0';
-    card.style.transform = 'translateY(30px)';
-    card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-    observer.observe(card);
-});
-
-// Add random movement to floating stickers
-function animateStickers() {
-    const stickers = document.querySelectorAll('.floating-stickers .sticker');
-    
-    stickers.forEach((sticker, index) => {
-        const randomX = Math.random() * 30 - 15;
-        const randomY = Math.random() * 30 - 15;
-        const randomRotation = Math.random() * 15 - 7.5;
-        
-        setInterval(() => {
-            sticker.style.transform = `translate(${randomX}px, ${randomY}px) rotate(${randomRotation}deg)`;
-        }, 3000 + index * 500);
-    });
+function incrementBrick() {
+    brickCount++;
+    brickCountEl.textContent = brickCount;
+    counterEl.style.transform = 'translateY(-3px) scale(1.18)';
+    setTimeout(() => { counterEl.style.transform = ''; }, 160);
 }
 
-animateStickers();
+// ---- WEB AUDIO — LEGO CLICK SOUND ----
+let audioCtx = null;
 
-// Cursor glow effect
-const cursor = document.createElement('div');
-cursor.className = 'cursor-glow';
-document.body.appendChild(cursor);
+function playBrickSound() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
 
-const style = document.createElement('style');
-style.textContent = `
-    .cursor-glow {
-        position: fixed;
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(0, 255, 249, 0.5), transparent);
-        pointer-events: none;
-        z-index: 9999;
-        transition: transform 0.1s ease;
-        mix-blend-mode: screen;
+        // Short noise burst that sounds like plastic clicking
+        const dur  = 0.055;
+        const buf  = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.8);
+        }
+        const src  = audioCtx.createBufferSource();
+        src.buffer = buf;
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.22, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+
+        // Slight low-pass to make it sound more plastic, less sharp
+        const filter = audioCtx.createBiquadFilter();
+        filter.type  = 'lowpass';
+        filter.frequency.value = 2400;
+
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        src.start();
+    } catch (e) { /* audio blocked — silently skip */ }
+}
+
+// ---- STUD PARTICLE BURST ----
+const PARTICLE_COLORS = ['#DA291C', '#006DB7', '#00A550', '#F5CD2F', '#FF6600'];
+
+function spawnStudParticles(x, y) {
+    const color = PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)];
+    for (let i = 0; i < 9; i++) {
+        const stud  = document.createElement('div');
+        stud.className = 'stud-particle';
+        const angle = (i / 9) * Math.PI * 2;
+        const dist  = 42 + Math.random() * 38;
+        stud.style.cssText = `
+            left: ${x}px;
+            top:  ${y}px;
+            background: ${color};
+            --tx: ${(Math.cos(angle) * dist).toFixed(1)}px;
+            --ty: ${(Math.sin(angle) * dist).toFixed(1)}px;
+        `;
+        document.body.appendChild(stud);
+        setTimeout(() => stud.remove(), 800);
     }
-`;
-document.head.appendChild(style);
+}
+
+// ---- UNIFIED CLICK HANDLER ----
+document.addEventListener('click', function (e) {
+    const card      = e.target.closest('.lego-card');
+    const navBrick  = e.target.closest('.nav-brick');
+    const socialBtn = e.target.closest('.social-btn');
+    const colorB    = e.target.closest('.color-brick');
+
+    if (!card && !navBrick && !socialBtn && !colorB) return;
+
+    playBrickSound();
+    spawnStudParticles(e.clientX, e.clientY);
+
+    if (card) incrementBrick();
+});
+
+// ---- COLOR SELECTOR ----
+document.querySelectorAll('.color-brick').forEach(brick => {
+    brick.addEventListener('click', function () {
+        document.querySelectorAll('.color-brick').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+
+        const color = this.style.background;
+        const dark  = this.dataset.dark || 'rgba(0,0,0,0.4)';
+
+        // Update counter badge to match selected color
+        counterEl.style.background = color;
+        counterEl.style.boxShadow  = `0 4px 0 ${dark}, 0 6px 12px rgba(0,0,0,0.35)`;
+
+        // Update CSS vars for accent (nav active glow, etc.)
+        document.documentElement.style.setProperty('--accent',      color);
+        document.documentElement.style.setProperty('--accent-dark', dark);
+    });
+});
+
+// ---- SCROLL BUILD-IN ANIMATION ----
+const buildObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+}, { threshold: 0.08, rootMargin: '0px 0px -60px 0px' });
+
+document.querySelectorAll('.lego-card, .section-title-brick').forEach((el, i) => {
+    el.classList.add('build-in');
+    el.style.transitionDelay = `${(i % 4) * 0.08}s`;
+    buildObserver.observe(el);
+});
+
+// ---- CURSOR STUD TRAIL ----
+let lastTrail = 0;
 
 document.addEventListener('mousemove', (e) => {
-    cursor.style.left = e.clientX - 10 + 'px';
-    cursor.style.top = e.clientY - 10 + 'px';
-});
+    const now = performance.now();
+    if (now - lastTrail < 55) return;
+    lastTrail = now;
 
-// Add click ripple effect
-document.querySelectorAll('.skill-card, .project-card, .social-btn, .nav-link').forEach(element => {
-    element.addEventListener('click', function(e) {
-        const ripple = document.createElement('span');
-        const rect = this.getBoundingClientRect();
-        const size = Math.max(rect.width, rect.height);
-        const x = e.clientX - rect.left - size / 2;
-        const y = e.clientY - rect.top - size / 2;
-        
-        ripple.style.width = ripple.style.height = size + 'px';
-        ripple.style.left = x + 'px';
-        ripple.style.top = y + 'px';
-        ripple.className = 'ripple';
-        
-        this.appendChild(ripple);
-        
-        setTimeout(() => ripple.remove(), 600);
-    });
-});
+    const stud = document.createElement('div');
+    stud.className = 'cursor-trail-stud';
+    stud.style.left = `${e.clientX - 5}px`;
+    stud.style.top  = `${e.clientY - 5}px`;
+    document.body.appendChild(stud);
 
-// Add ripple effect styles
-const rippleStyle = document.createElement('style');
-rippleStyle.textContent = `
-    .skill-card, .project-card, .social-btn, .nav-link {
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .ripple {
-        position: absolute;
-        border-radius: 50%;
-        background: rgba(0, 255, 249, 0.5);
-        transform: scale(0);
-        animation: ripple-animation 0.6s ease-out;
-        pointer-events: none;
-    }
-    
-    @keyframes ripple-animation {
-        to {
-            transform: scale(4);
-            opacity: 0;
-        }
-    }
-`;
-document.head.appendChild(rippleStyle);
+    // Fade out after brief pause
+    setTimeout(() => {
+        stud.style.opacity   = '0';
+        stud.style.transform = 'scale(0)';
+    }, 60);
 
-// Typing effect for subtitle (optional enhancement)
-const subtitle = document.querySelector('.subtitle');
-const originalText = subtitle.textContent;
-subtitle.textContent = '';
+    setTimeout(() => stud.remove(), 380);
+}, { passive: true });
 
-let charIndex = 0;
-function typeWriter() {
-    if (charIndex < originalText.length) {
-        subtitle.textContent += originalText.charAt(charIndex);
-        charIndex++;
-        setTimeout(typeWriter, 100);
-    }
-}
-
-// Start typing effect after page loads
-window.addEventListener('load', () => {
-    setTimeout(typeWriter, 500);
-});
-
-// Add glitch effect on hover to project cards
-document.querySelectorAll('.project-card h3').forEach(title => {
-    title.addEventListener('mouseenter', function() {
-        this.style.animation = 'glitch 0.3s ease';
-    });
-    
-    title.addEventListener('animationend', function() {
-        this.style.animation = '';
-    });
-});
-
-// Console easter egg
-console.log('%c RAPHAEL TALON', 'color: #fff; background: #000; font-size: 30px; font-weight: bold; padding: 10px; font-family: Arial Black;');
-console.log('%cBuilt with HTML, CSS, and JavaScript', 'color: #ff006e; font-size: 14px; font-weight: bold;');
-console.log('%cStussy-inspired streetwear aesthetic', 'color: #00fff9; font-size: 14px; font-weight: bold;');
+// ---- CONSOLE EASTER EGG ----
+console.log(
+    '%c 🧱 RAPHAEL TALON ',
+    'color:#1A1A1A;background:#F5CD2F;font-size:28px;font-weight:bold;padding:8px 16px;border-radius:4px;'
+);
+console.log('%c Built with HTML, CSS & JS — LEGO Edition', 'color:#DA291C;font-size:13px;font-weight:bold;');
+console.log('%c Click the bricks! 🧱', 'color:#006DB7;font-size:13px;font-weight:bold;');
